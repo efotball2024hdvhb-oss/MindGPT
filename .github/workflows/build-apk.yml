@@ -25,16 +25,25 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Accept Android Licenses & Install SDK
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" || true
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 9.3.1
+          cache-disabled: false
 
-      - name: Prepare Signing, Secrets & Permissions
+      - name: Generate Gradle Wrapper
         run: |
-          chmod +x gradlew || true
+          gradle wrapper --gradle-version 9.3.1 --distribution-type bin
+          chmod +x gradlew
 
-          # 1. Provide keystore safely
+      - name: Prepare Signing and Secrets
+        run: |
+          # 1. Decode or generate keystore
           if [ -f debug.keystore.base64 ]; then
             base64 -d debug.keystore.base64 > debug.keystore
           fi
@@ -42,7 +51,7 @@ jobs:
             keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-          # 2. Provide .env
+          # 2. Provide .env for secrets plugin
           if [ ! -f .env ]; then
             if [ -f .env.example ]; then
               cp .env.example .env
@@ -56,7 +65,7 @@ jobs:
 
       - name: Build Android APK
         run: |
-          gradle assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleDebug --no-daemon --no-configuration-cache --stacktrace
 
       - name: Upload MindGPT APK
         uses: actions/upload-artifact@v4
