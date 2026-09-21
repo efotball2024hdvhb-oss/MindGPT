@@ -1,0 +1,7 @@
+{
+  "name": "MindGPT",
+  "description": "ChatGPT-inspired intelligent AI assistant supporting Persian and multi-turn conversations, live voice mode, message editing, search grounding, and smart widgets.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
