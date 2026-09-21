@@ -22,28 +22,19 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Accept Android Licenses & Install SDK
-        run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-36" "build-tools;36.0.0" || true
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 9.3.1
-          cache-disabled: false
 
-      - name: Generate Gradle Wrapper
+      - name: Prepare Android Licenses, Signing and Secrets
         run: |
-          gradle wrapper --gradle-version 9.3.1 --distribution-type bin
-          chmod +x gradlew
+          # Automatically accept all Android SDK licenses
+          mkdir -p "$ANDROID_HOME/licenses" || true
+          echo -e "24333f8a63b682569dd7e0844ac088e937473e54\n84831b9409646a918e30573bab4c9c91346d8abd\nd56f5187479451eabf01fb78af6dfcb131a6481e" > "$ANDROID_HOME/licenses/android-sdk-license"
+          echo -e "893fb8b22d8222874f1dce324e1772298c43c3fe" > "$ANDROID_HOME/licenses/android-sdk-preview-license"
 
-      - name: Prepare Signing and Secrets
-        run: |
-          # 1. Decode or generate keystore
+          # Prepare keystore safely
           if [ -f debug.keystore.base64 ]; then
             base64 -d debug.keystore.base64 > debug.keystore
           fi
@@ -51,7 +42,7 @@ jobs:
             keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-          # 2. Provide .env for secrets plugin
+          # Prepare .env for secrets plugin
           if [ ! -f .env ]; then
             if [ -f .env.example ]; then
               cp .env.example .env
@@ -65,7 +56,7 @@ jobs:
 
       - name: Build Android APK
         run: |
-          ./gradlew assembleDebug --no-daemon --no-configuration-cache --stacktrace
+          gradle :app:assembleDebug --no-daemon --no-configuration-cache --stacktrace
 
       - name: Upload MindGPT APK
         uses: actions/upload-artifact@v4
