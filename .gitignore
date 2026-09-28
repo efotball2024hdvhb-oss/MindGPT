@@ -52,3 +52,6 @@ next-env.d.ts
 # release packaging
 /release/
 /pkg/
+
+/dist-mobile/
+/apk/

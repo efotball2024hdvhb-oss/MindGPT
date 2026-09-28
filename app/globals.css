@@ -2139,3 +2139,36 @@ button:focus:not(:focus-visible) {
     display: none;
   }
 }
+
+.api-key-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.api-key-row {
+  display: flex;
+  gap: 8px;
+}
+.api-key-box .form-input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 15px;
+  outline: none;
+}
+.api-key-box .form-input:focus {
+  border-color: var(--ring, #6099f7);
+}
+.api-key-row .form-input {
+  flex: 1;
+}
+.api-key-box .field-label {
+  margin: 4px 0 0;
+}

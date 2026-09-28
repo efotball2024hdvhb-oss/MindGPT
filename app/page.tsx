@@ -146,6 +146,13 @@ import {
   type Asset,
 } from "@/lib/types";
 import { useVoice } from "@/hooks/use-voice";
+import {
+  fileUrl,
+  isLocal,
+  getApiKey,
+  getBaseUrl,
+  setApiConfig,
+} from "@/lib/local-api";
 import { extractText } from "@/lib/attachments";
 
 type Item = {
@@ -300,6 +307,71 @@ function CodeBlock({ children, ...props }: any) {
     </div>
   );
 }
+function ApiKeySettings({
+  t,
+  onSaved,
+}: {
+  t: (fa: string, en: string) => string;
+  onSaved: () => void;
+}) {
+  const [key, setKey] = useState(() => getApiKey());
+  const [base, setBase] = useState(() => getBaseUrl());
+  const [show, setShow] = useState(false);
+  return (
+    <div className="api-key-box">
+      <label className="field-label" htmlFor="api-key">
+        {t("کلید API", "API key")}
+      </label>
+      <div className="api-key-row">
+        <input
+          id="api-key"
+          className="form-input"
+          dir="ltr"
+          type={show ? "text" : "password"}
+          autoComplete="off"
+          spellCheck={false}
+          value={key}
+          onChange={(e) => setKey(e.target.value)}
+          placeholder="sk-..."
+        />
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => setShow((v) => !v)}
+        >
+          {show ? t("پنهان", "Hide") : t("نمایش", "Show")}
+        </button>
+      </div>
+      <label className="field-label" htmlFor="api-base">
+        {t("آدرس سرویس", "Service URL")}
+      </label>
+      <input
+        id="api-base"
+        className="form-input"
+        dir="ltr"
+        value={base}
+        onChange={(e) => setBase(e.target.value)}
+        placeholder="https://codecraftapi.com/v1"
+      />
+      <button
+        className="primary-button full"
+        onClick={() => {
+          setApiConfig(key, base);
+          toast.success(t("ذخیره شد", "Saved"));
+          onSaved();
+        }}
+      >
+        {t("ذخیرهٔ کلید و دریافت مدل‌ها", "Save key and load models")}
+      </button>
+      <p className="muted-note">
+        {t(
+          "کلید فقط روی همین گوشی ذخیره می‌شود و مستقیم به سرویس هوش مصنوعی فرستاده می‌شود.",
+          "The key is stored only on this device and sent directly to the AI service.",
+        )}
+      </p>
+    </div>
+  );
+}
 function ChatBody() {
   const { toggleSidebar, setOpenMobile, isMobile } = useSidebar();
   const [profile, setProfile] = useState<Profile>({
@@ -451,7 +523,7 @@ function ChatBody() {
       setInstallPrompt(e);
     };
     window.addEventListener("beforeinstallprompt", install);
-    if ("serviceWorker" in navigator)
+    if ("serviceWorker" in navigator && !isLocal())
       navigator.serviceWorker.register("/sw.js").catch(() => {});
     const size = () =>
       document.documentElement.style.setProperty(
@@ -1439,12 +1511,12 @@ function ChatBody() {
                                 className="image-attachment"
                                 onClick={() => setImageAsset(a)}
                               >
-                                <img src={"/api/files/" + a.id} alt={a.name} />
+                                <img src={fileUrl(a.id)} alt={a.name} />
                               </button>
                             ) : (
                               <a
                                 key={a.id}
-                                href={"/api/files/" + a.id}
+                                href={fileUrl(a.id)}
                                 className="file-attachment"
                                 download
                               >
@@ -1734,7 +1806,7 @@ function ChatBody() {
                 {files.map((a) => (
                   <div key={a.id}>
                     {a.mime.startsWith("image/") ? (
-                      <img src={"/api/files/" + a.id} alt="" />
+                      <img src={fileUrl(a.id)} alt="" />
                     ) : (
                       <FileText />
                     )}
@@ -2081,6 +2153,7 @@ function ChatBody() {
                       </p>
                     </div>
                   </div>
+                  {isLocal() && <ApiKeySettings t={t} onSaved={loadModels} />}
                   <button
                     className="primary-button full"
                     onClick={() => setPanel("models")}
@@ -2488,7 +2561,7 @@ function ChatBody() {
                           onClick={() => setImageAsset(a)}
                         >
                           <img
-                            src={"/api/files/" + a.id}
+                            src={fileUrl(a.id)}
                             alt={a.name}
                             loading="lazy"
                           />
@@ -2501,7 +2574,7 @@ function ChatBody() {
                       <div className="asset-caption">
                         <span>{a.name}</span>
                         <a
-                          href={"/api/files/" + a.id}
+                          href={fileUrl(a.id)}
                           download={a.name}
                           aria-label={t("دریافت فایل", "Download file")}
                         >
@@ -2926,7 +2999,7 @@ function ChatBody() {
             <span>{imageAsset?.name}</span>
             <a
               className="icon-button"
-              href={"/api/files/" + imageAsset?.id}
+              href={fileUrl(imageAsset?.id)}
               download={imageAsset?.name}
               aria-label={t("ذخیرهٔ تصویر", "Download image")}
             >
@@ -2936,7 +3009,7 @@ function ChatBody() {
           {imageAsset && (
             <img
               className="viewer-image"
-              src={"/api/files/" + imageAsset.id}
+              src={fileUrl(imageAsset.id)}
               alt={imageAsset.name}
             />
           )}

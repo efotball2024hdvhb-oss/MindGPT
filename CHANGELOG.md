@@ -2,6 +2,12 @@
 
 همه‌ی تغییرات مهم این پروژه اینجا ثبت می‌شود. قالب بر اساس [Keep a Changelog](https://keepachangelog.com) و [SemVer](https://semver.org).
 
+## [1.2.0] - 2026-09-28
+
+### Added
+- نسخه‌ی مستقل اندروید (APK) بدون نیاز به سرور: ذخیره‌ی چت و فایل روی گوشی، کلید API در تنظیمات.
+- Workflow ساخت خودکار APK در GitHub Actions.
+
 ## [1.1.0] - 2026-09-28
 
 ### Changed
