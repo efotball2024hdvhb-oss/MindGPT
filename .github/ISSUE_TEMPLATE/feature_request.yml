@@ -1,0 +1,20 @@
+name: ✨ درخواست قابلیت · Feature request
+description: ایده‌ای برای بهتر کردن MindGPT داری؟
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: مشکل یا نیاز · Problem
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: راه‌حل پیشنهادی · Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: جایگزین‌ها · Alternatives

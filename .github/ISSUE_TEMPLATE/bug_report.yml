@@ -1,0 +1,46 @@
+name: 🐞 گزارش باگ · Bug report
+description: مشکلی پیدا کردی؟ گزارشش کن.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: چه اتفاقی افتاد؟ · What happened?
+      placeholder: توضیح کوتاه و واضح
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: مراحل بازتولید · Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: رفتار مورد انتظار · Expected behavior
+  - type: dropdown
+    id: platform
+    attributes:
+      label: پلتفرم · Platform
+      options:
+        - Android (Chrome / PWA)
+        - iOS (Safari)
+        - Desktop (Chrome / Edge)
+        - Desktop (Firefox)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: نسخه · Version
+      placeholder: v1.1.0
+  - type: textarea
+    id: logs
+    attributes:
+      label: لاگ یا اسکرین‌شات · Logs / screenshots
+      render: shell

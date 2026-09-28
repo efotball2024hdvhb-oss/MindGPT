@@ -1,0 +1,67 @@
+name: Release
+
+# Push a tag like v1.1.0 to publish a downloadable release:
+#   git tag v1.1.0 && git push origin v1.1.0
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v1.1.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & publish release
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+
+      - name: Package release assets
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          # 1) Ready-to-deploy build (Cloudflare Worker output + migrations)
+          mkdir -p pkg/MindGPT-${TAG}
+          cp -r dist drizzle .env.example README.md LICENSE pkg/MindGPT-${TAG}/
+          (cd pkg && zip -qr ../release/MindGPT-${TAG}-build.zip MindGPT-${TAG})
+          # 2) Clean source archive (no node_modules / secrets)
+          git archive --format=zip --prefix=MindGPT-${TAG}/ -o release/MindGPT-${TAG}-source.zip HEAD
+          # 3) Checksums
+          (cd release && sha256sum *.zip > SHA256SUMS.txt)
+          ls -la release
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: MindGPT ${{ env.TAG }}
+          generate_release_notes: true
+          body_path: .github/RELEASE_TEMPLATE.md
+          files: |
+            release/MindGPT-${{ env.TAG }}-build.zip
+            release/MindGPT-${{ env.TAG }}-source.zip
+            release/SHA256SUMS.txt

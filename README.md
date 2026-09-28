@@ -6,16 +6,16 @@
 
 **دستیار گفت‌وگوی هوشمند، فارسی و انگلیسی، سبک، سریع و قابل نصب روی گوشی (PWA)**
 
-[![CI](https://github.com/efotball2024hdvhb-oss/MindGPT/actions/workflows/ci.yml/badge.svg)](https://github.com/efotball2024hdvhb-oss/MindGPT/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/efotball2024hdvhb-oss/MindGPT?color=0a84ff&label=release)](https://github.com/efotball2024hdvhb-oss/MindGPT/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/efotball2024hdvhb-oss/MindGPT/total?color=18c8f0)](https://github.com/efotball2024hdvhb-oss/MindGPT/releases)
+[![CI](https://github.com/YOUR_USERNAME/MindGPT/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/MindGPT/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/YOUR_USERNAME/MindGPT?color=0a84ff&label=release)](https://github.com/YOUR_USERNAME/MindGPT/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/YOUR_USERNAME/MindGPT/total?color=18c8f0)](https://github.com/YOUR_USERNAME/MindGPT/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-2563eb.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%E2%89%A522.13-3c873a.svg)](https://nodejs.org)
 [![Telegram](https://img.shields.io/badge/Telegram-dev__vexel-26a5e4?logo=telegram)](https://t.me/dev_vexel)
 
-[**📥 دانلود آخرین نسخه**](https://github.com/efotball2024hdvhb-oss/MindGPT/releases/latest) ·
-[گزارش باگ](https://github.com/efotball2024hdvhb-oss/MindGPT/issues/new?template=bug_report.yml) ·
-[درخواست قابلیت](https://github.com/efotball2024hdvhb-oss/MindGPT/issues/new?template=feature_request.yml) ·
+[**📥 دانلود آخرین نسخه**](https://github.com/YOUR_USERNAME/MindGPT/releases/latest) ·
+[گزارش باگ](https://github.com/YOUR_USERNAME/MindGPT/issues/new?template=bug_report.yml) ·
+[درخواست قابلیت](https://github.com/YOUR_USERNAME/MindGPT/issues/new?template=feature_request.yml) ·
 [English](#-english)
 
 </div>
@@ -56,7 +56,7 @@ MindGPT یک وب‌اپ گفت‌وگوی هوش مصنوعی با رابط ت�
 
 ## 📥 دانلود
 
-آخرین نسخه را از صفحه‌ی **[Releases](https://github.com/efotball2024hdvhb-oss/MindGPT/releases/latest)** بگیر:
+آخرین نسخه را از صفحه‌ی **[Releases](https://github.com/YOUR_USERNAME/MindGPT/releases/latest)** بگیر:
 
 | فایل | کاربرد |
 | --- | --- |
@@ -67,7 +67,7 @@ MindGPT یک وب‌اپ گفت‌وگوی هوش مصنوعی با رابط ت�
 یا مستقیم clone کن:
 
 ```sh
-git clone https://github.com/efotball2024hdvhb-oss/MindGPT.git
+git clone https://github.com/YOUR_USERNAME/MindGPT.git
 cd MindGPT
 ```
 
@@ -112,9 +112,9 @@ pnpm dev
 
 پروژه روی **Cloudflare Workers** اجرا می‌شود (D1 برای گفتگوها، R2 برای فایل‌ها). میزبان استاتیک کافی نیست.
 
-1. در Cloudflare یک **D1** و یک **R2** بساز و binding آن‌ها را `DB` و `BUCKET` بگذار.
+1. در Cloudflare یک **D1** به نام `mindgpt-db` و یک **R2** به نام `mindgpt-files` بساز و binding آن‌ها را `DB` و `BUCKET` بگذار.
 2. در مخزن GitHub، در **Settings → Secrets and variables → Actions** این‌ها را اضافه کن:
-   `CLOUDFLARE_API_TOKEN` · `CLOUDFLARE_ACCOUNT_ID` · `CODECRAFT_API_KEY`
+   `CLOUDFLARE_API_TOKEN` · `CLOUDFLARE_ACCOUNT_ID` · `CODECRAFT_API_KEY` · `D1_DATABASE_ID`
 3. از تب **Actions** گزینه‌ی **Deploy to Cloudflare** را اجرا کن (بار اول تیک `run_migration` را بزن).
 
 ### 🤖 GitHub Actions
@@ -192,7 +192,7 @@ cp .env.example .env   # set CODECRAFT_API_KEY
 pnpm build && pnpm dev
 ```
 
-**Download:** grab the latest build from [Releases](https://github.com/efotball2024hdvhb-oss/MindGPT/releases/latest).
+**Download:** grab the latest build from [Releases](https://github.com/YOUR_USERNAME/MindGPT/releases/latest).
 **Deploy:** Cloudflare Workers + D1 (`DB`) + R2 (`BUCKET`), via the *Deploy to Cloudflare* workflow.
 
 <div align="center">
