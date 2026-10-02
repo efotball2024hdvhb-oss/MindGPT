@@ -2675,7 +2675,7 @@ function ChatBody() {
                       </p>
                       <a
                         className="secondary-button"
-                        href="https://mindgpt-vexel.attagladys74839.chatgpt.site"
+                        href="https://mindgpt-vexel.alizeljezle.chatgpt.site"
                         target="_blank"
                         rel="noopener noreferrer"
                       >
