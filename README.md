@@ -6,21 +6,29 @@
 
 **دستیار گفت‌وگوی هوشمند، فارسی و انگلیسی، سبک، سریع و قابل نصب روی گوشی (PWA)**
 
-[![CI](https://github.com/YOUR_USERNAME/MindGPT/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/MindGPT/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/YOUR_USERNAME/MindGPT?color=0a84ff&label=release)](https://github.com/YOUR_USERNAME/MindGPT/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/YOUR_USERNAME/MindGPT/total?color=18c8f0)](https://github.com/YOUR_USERNAME/MindGPT/releases)
+[![CI](https://github.com/efotball2024hdvhb-oss/MindGPT/actions/workflows/ci.yml/badge.svg)](https://github.com/efotball2024hdvhb-oss/MindGPT/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/efotball2024hdvhb-oss/MindGPT?color=0a84ff&label=release)](https://github.com/efotball2024hdvhb-oss/MindGPT/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/efotball2024hdvhb-oss/MindGPT/total?color=18c8f0)](https://github.com/efotball2024hdvhb-oss/MindGPT/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-2563eb.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%E2%89%A522.13-3c873a.svg)](https://nodejs.org)
 [![Telegram](https://img.shields.io/badge/Telegram-dev__vexel-26a5e4?logo=telegram)](https://t.me/dev_vexel)
 
-[**📥 دانلود آخرین نسخه**](https://github.com/YOUR_USERNAME/MindGPT/releases/latest) ·
-[گزارش باگ](https://github.com/YOUR_USERNAME/MindGPT/issues/new?template=bug_report.yml) ·
-[درخواست قابلیت](https://github.com/YOUR_USERNAME/MindGPT/issues/new?template=feature_request.yml) ·
+[**📥 دانلود آخرین نسخه**](https://github.com/efotball2024hdvhb-oss/MindGPT/releases/latest) ·
+[گزارش باگ](https://github.com/efotball2024hdvhb-oss/MindGPT/issues/new?template=bug_report.yml) ·
+[درخواست قابلیت](https://github.com/efotball2024hdvhb-oss/MindGPT/issues/new?template=feature_request.yml) ·
 [English](#-english)
 
 </div>
 
 ---
+
+## نسخهٔ ۱.۳
+
+<img src="docs/images/mobile-v1.3.jpg" width="260" alt="MindGPT 1.3 mobile interface" />
+
+ورود رسمی و تاریخچهٔ حساب در نسخهٔ وب، گفتگوی موقت، تفکر و منابع دریافتی مدل، تنظیمات بیشتر و حذف لوگوهای کنار مدل و زیر چت اضافه شدند. امکانات APK و ذخیره‌سازی روی دستگاه حفظ شده‌اند. [تغییرات و محدودهٔ آزمون](docs/RELEASE-1.3.md) · [نمایش وب](https://mindgpt-vexel.attagladys74839.chatgpt.site)
+
+پاسخ زندهٔ CodeCraft هنوز به‌دلیل خطای دسترسی ۴۰۳ تأیید نشده است. قابلیت‌های اختصاصی ChatGPT که سرویس API فراهم نکرده، شبیه‌سازی نشده‌اند.
 
 ## 📖 فهرست
 
@@ -56,7 +64,7 @@ MindGPT یک وب‌اپ گفت‌وگوی هوش مصنوعی با رابط ت�
 
 ## 📥 دانلود
 
-آخرین نسخه را از صفحه‌ی **[Releases](https://github.com/YOUR_USERNAME/MindGPT/releases/latest)** بگیر:
+آخرین نسخه را از صفحه‌ی **[Releases](https://github.com/efotball2024hdvhb-oss/MindGPT/releases/latest)** بگیر:
 
 | فایل | کاربرد |
 | --- | --- |
@@ -67,7 +75,7 @@ MindGPT یک وب‌اپ گفت‌وگوی هوش مصنوعی با رابط ت�
 یا مستقیم clone کن:
 
 ```sh
-git clone https://github.com/YOUR_USERNAME/MindGPT.git
+git clone https://github.com/efotball2024hdvhb-oss/MindGPT.git
 cd MindGPT
 ```
 
@@ -153,7 +161,7 @@ MindGPT/
 
 ## ⚠️ محدودیت‌ها
 
-- ثبت‌نام ندارد؛ نشست ناشناس در کوکی HttpOnly است و بین دستگاه‌ها همگام نمی‌شود.
+- نسخهٔ وب Sites از ورود رسمی ChatGPT و تاریخچهٔ وابسته به حساب پشتیبانی می‌کند. حالت مهمان به مرورگر وابسته است و تاریخچهٔ مهمان جدا می‌ماند.
 - تولید تصویر/ویدئو، اجرای کد و Deep Research پیاده‌سازی نشده‌اند.
 - ورودی صوتی به Web Speech API مرورگر و HTTPS نیاز دارد.
 - PWA جای APK بومی را نمی‌گیرد و برای پیام به اینترنت نیاز دارد.
@@ -179,7 +187,7 @@ MindGPT/
 
 ## 🌐 English
 
-**MindGPT** is a bilingual (Persian/English), RTL-first AI chat web app with a dark, minimal UI, installable as a PWA on Android. Models are called server-side through an OpenAI-compatible API, so your key never reaches the browser.
+**MindGPT** is a bilingual (Persian/English), RTL-first AI chat web app with a dark, minimal UI, installable as a PWA on Android. The hosted web edition calls models server-side. The standalone Android edition stores the user's own API key on the device and calls the provider directly.
 
 **Features:** streaming replies, Markdown/code/math, live model list, edit & retry, chat drawer with search/pin/archive/projects, image/PDF/DOCX uploads, voice input & read-aloud, light/dark themes, ICS reminders.
 
@@ -192,7 +200,7 @@ cp .env.example .env   # set CODECRAFT_API_KEY
 pnpm build && pnpm dev
 ```
 
-**Download:** grab the latest build from [Releases](https://github.com/YOUR_USERNAME/MindGPT/releases/latest).
+**Download:** grab the latest build from [Releases](https://github.com/efotball2024hdvhb-oss/MindGPT/releases/latest).
 **Deploy:** Cloudflare Workers + D1 (`DB`) + R2 (`BUCKET`), via the *Deploy to Cloudflare* workflow.
 
 <div align="center">

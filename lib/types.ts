@@ -1,3 +1,4 @@
+import type { Source } from "./chat-protocol";
 export type Asset = {
   id: string;
   name: string;
@@ -15,6 +16,11 @@ export type Message = {
   model?: string;
   feedback?: "up" | "down";
   stopped?: boolean;
+  reasoning?: string;
+  reasoningDurationMs?: number;
+  sources?: Source[];
+  finishReason?: string;
+  webRequested?: boolean;
 };
 export type Chat = {
   id: string;
@@ -22,6 +28,7 @@ export type Chat = {
   messages: Message[];
   created: number;
   updated: number;
+  temporary?: boolean;
   pinned?: boolean;
   archived?: boolean;
   project?: string;
@@ -40,6 +47,11 @@ export type Profile = {
   model?: string;
   haptics?: boolean;
   instructions?: string;
+  tone?: string;
+  nickname?: string;
+  occupation?: string;
+  about?: string;
+  dictation?: boolean;
   voiceRate?: string;
   projects?: { id: string; name: string }[];
   tasks?: { id: string; text: string; at: string }[];
@@ -73,3 +85,4 @@ export const plain = (s: string) =>
     .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     .replace(/[*#_`>]/g, "");
+

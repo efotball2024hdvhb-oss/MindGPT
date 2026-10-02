@@ -44,6 +44,9 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Test response protocol and account isolation
+        run: pnpm test
+
       - name: Lint
         run: pnpm lint
         continue-on-error: true
@@ -56,3 +59,4 @@ jobs:
           name: mindgpt-dist-${{ github.sha }}
           path: dist/
           retention-days: 7
+

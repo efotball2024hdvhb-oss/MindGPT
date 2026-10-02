@@ -34,3 +34,22 @@ Microphone permission, actual speech recognition, Android Persian TTS voice avai
 WebMCP registration is capability-detected and exposes read-only chat listing and draft staging; the test browser did not advertise the required capability, so this integration was not exercised.
 
 No guarantee of zero bugs or exact rendering across all devices is made.
+
+## 1.1.0 branding and repository update
+
+- The supplied logo was copied byte-for-byte and framed with CSS in the app.
+- Both Persian and English footer disclaimer strings were removed. The recording-confirmation guidance remains.
+- Mobile visual inspection confirmed the new top-bar and footer logo. Footer client width equals scroll width at 390 px.
+- Issue forms, CI and draft-release workflow YAML were parsed locally. TypeScript passed.
+- GitHub workflow execution is pending repository creation and a successful hosted run; no hosted CI success is claimed.
+
+
+## 1.3.0 — 2026-10-02
+
+- Signed-in ChatGPT UI inspected live: account menu, General, Personalization, Voice and Data controls, composer tools, response actions and conversation menu. An explicit short test chat was sent. No existing personal chats or account preferences were changed.
+- TypeScript and 10 protocol/identity/personalization/temporary-validation tests passed.
+- Mobile 390×844 UI checked: account menu, settings layout, guest login page and continuation, footer/header logo removal, temporary-chat exclusion from saved history, and persisted custom instructions/nickname after a fresh navigation.
+- Reasoning/source streaming, partial-answer errors and stop behavior checked with labelled local fixtures. Production imports no fixture.
+- Platform sign-in routes use bundled SIWC helpers; complete hosted sign-in/out and cross-browser account behavior remain to be verified over production HTTPS. Account-owner hashing and guest-cookie namespace separation were unit tested.
+- CodeCraft live /models returned HTTP 403 Cloudflare 1010 browser_signature_banned. No workaround or successful live generation is claimed.
+- Real-time model voice, image generation, Deep Research, agent execution and unattended AI tasks remain unavailable with the established provider contract. Existing voice is browser dictation/read-aloud.

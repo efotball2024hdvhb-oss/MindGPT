@@ -1,4 +1,16 @@
 "use client";
+import { Input } from "@/components/ui/input";
+import {
+  ReasoningDetails,
+  ResponseSources,
+} from "@/components/response-details";
+import {
+  readCompletion,
+  mergeSources,
+  citedMarkdown,
+} from "@/lib/chat-protocol";
+import { personalization } from "@/lib/personalization";
+import { isChatModel, selectModeModel } from "@/lib/model-selection";
 import {
   useEffect,
   useRef,
@@ -23,6 +35,8 @@ import {
   Clock,
   AtSign,
   Settings,
+  UserRound,
+  LogOut,
   ChevronDown,
   ChevronRight,
   Copy,
@@ -372,6 +386,17 @@ function ApiKeySettings({
     </div>
   );
 }
+const settingsKeywords: Record<string, string> = {
+  general:
+    "عمومی ظاهر زبان بازخورد نصب general appearance theme language haptic install",
+  models: "مدل هوش models model ai",
+  personal:
+    "شخصی‌سازی نام شغل دستور لحن personalization nickname occupation instructions tone about",
+  voice: "صدا ضبط گفتار voice audio playback dictation microphone",
+  data: "داده بایگانی حذف خروجی تاریخچه data controls archive delete export history",
+  storage: "فضای ذخیره فایل کتابخانه storage files library",
+  account: "حساب ورود خروج ایمیل account login sign in out email",
+};
 function ChatBody() {
   const { toggleSidebar, setOpenMobile, isMobile } = useSidebar();
   const [profile, setProfile] = useState<Profile>({
@@ -382,7 +407,16 @@ function ChatBody() {
   });
   const profileRef = useRef(profile);
   profileRef.current = profile;
+  const [account, setAccount] = useState<{
+    displayName: string;
+    email: string;
+  } | null>(null);
+  const [signInPath, setSignInPath] = useState("");
+  const [signOutPath, setSignOutPath] = useState("");
+  const [settingsTab, setSettingsTab] = useState("general");
+  const [settingsSearch, setSettingsSearch] = useState("");
   const [chats, setChats] = useState<Chat[]>([]);
+  const [temporary, setTemporary] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [ready, setReady] = useState(false);
@@ -402,6 +436,10 @@ function ChatBody() {
   const [selectedText, setSelectedText] = useState("");
   const [rename, setRename] = useState<Chat | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [bulkAction, setBulkAction] = useState<"archive" | "delete" | null>(
+    null,
+  );
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [deleteChat, setDeleteChat] = useState<Chat | null>(null);
   const [contextId, setContextId] = useState<string | null>(null);
   const [find, setFind] = useState(false);
@@ -434,6 +472,16 @@ function ChatBody() {
     selectedModel?.name || selectedModel?.id || t("انتخاب مدل", "Select model");
   function errorMessage(s: string) {
     if (!fa) return s;
+    if (s.includes("security filter"))
+      return "فیلتر دسترسی CodeCraft این اتصال را مسدود کرده است. دسترسی سرور باید توسط پشتیبانی سرویس بررسی شود.";
+    if (/before the response finished/.test(s))
+      return "ارتباط پیش از پایان پاسخ قطع شد. قسمت دریافت‌شده حفظ شده است.";
+    if (/invalid stream/.test(s))
+      return "پاسخ سرویس ناقص یا نامعتبر بود. دوباره امتحان کن.";
+    if (/reasoning budget/.test(s))
+      return "سهم پاسخ صرف تفکر شد و متن نهایی نرسید. دوباره امتحان کن یا مدل دیگری انتخاب کن.";
+    if (/tool execution/.test(s))
+      return "مدل درخواست اجرای ابزاری را داد که این سرویس در دسترس نگذاشته است.";
     if (s.includes("(403)"))
       return "سرویس CodeCraft دسترسی را نپذیرفت (۴۰۳). مجوز کلید یا دسترسی سرویس باید بررسی شود.";
     if (/key was rejected/.test(s)) return "کلید API پذیرفته نشد.";
@@ -478,9 +526,7 @@ function ChatBody() {
         !profileRef.current.model ||
         !data.data.some((m: Model) => m.id === profileRef.current.model)
       ) {
-        const first =
-          data.data.find((m: Model) => m.type === "chat") ||
-          data.data.find((m: Model) => m.type !== "embedding");
+        const first = data.data.find((m: Model) => isChatModel(m));
         if (first) updateProfile({ model: first.id });
       }
     } catch (e: any) {
@@ -493,6 +539,9 @@ function ChatBody() {
     setBootError("");
     try {
       const data = await api("bootstrap");
+      setAccount(data.account || null);
+      setSignInPath(data.signInPath || "");
+      setSignOutPath(data.signOutPath || "");
       setChats(data.chats);
       setAssets(data.assets);
       try {
@@ -580,12 +629,16 @@ function ChatBody() {
   useEffect(() => {
     if (!ready) return;
     try {
+      if (temporary) {
+        sessionStorage.removeItem("mindgpt-draft");
+        return;
+      }
       sessionStorage.setItem(
         "mindgpt-draft",
         JSON.stringify({ chatId: activeId, text: draft }),
       );
     } catch {}
-  }, [ready, activeId, draft]);
+  }, [ready, activeId, draft, temporary]);
   function updateProfile(patch: Partial<Profile>) {
     const next = { ...profileRef.current, ...patch };
     profileRef.current = next;
@@ -604,7 +657,7 @@ function ChatBody() {
     );
   }
   async function persist(c: Chat) {
-    await api("chats", "POST", c);
+    if (!c.temporary) await api("chats", "POST", c);
     mergeChat(c);
   }
   async function changeChat(c: Chat, patch: Partial<Chat>) {
@@ -622,6 +675,7 @@ function ChatBody() {
       );
       return;
     }
+    setChats((cs) => cs.filter((c) => !c.temporary));
     setActiveId(null);
     setDraft("");
     setFiles([]);
@@ -638,6 +692,8 @@ function ChatBody() {
       );
       return;
     }
+    setTemporary(false);
+    setChats((cs) => cs.filter((x) => !x.temporary));
     setActiveId(c.id);
     setEditing(null);
     setDraft("");
@@ -672,7 +728,7 @@ function ChatBody() {
             app: "MindGPT",
             version: 1,
             exported: new Date().toISOString(),
-            chats,
+            chats: chats.filter((c) => !c.temporary),
             profile,
             assets,
           },
@@ -696,35 +752,74 @@ function ChatBody() {
     } else setPanel("install");
   }
   function modelForWeb() {
-    return models.find((m) => m.capabilities?.includes("web_search"));
+    return selectModeModel(models, profile.model, {
+      web: true,
+      reasoning: thinking,
+    });
+  }
+  function modeModel(
+    withWeb: boolean,
+    withThinking: boolean,
+    context = messages,
+    attachments = files,
+  ) {
+    const vision = [
+      ...context
+        .slice(-80)
+        .filter((m) => !m.error)
+        .flatMap((m) => m.attachments || []),
+      ...attachments,
+    ].some((a) => /^image\/(png|jpeg|webp|gif)$/.test(a.mime));
+    return selectModeModel(models, profile.model, {
+      web: withWeb,
+      reasoning: withThinking,
+      vision,
+    });
+  }
+  function unavailableMode() {
+    toast.error(
+      t(
+        "مدلی با ترکیب قابلیت‌های انتخاب‌شده پیدا نشد. تفکر یا وب را خاموش کن، یا مدل دیگری انتخاب کن.",
+        "No model supports the selected combination. Turn off Thinking or Search, or choose another model.",
+      ),
+    );
+    setPanel("models");
+  }
+  function enableThinking() {
+    if (thinking) {
+      setThinking(false);
+      return true;
+    }
+    const chosen = modeModel(web, true);
+    if (!chosen) {
+      unavailableMode();
+      return false;
+    }
+    updateProfile({ model: chosen.id });
+    setThinking(true);
+    haptic();
+    return true;
   }
   function enableWeb() {
-    if (!modelForWeb()) {
-      toast(
-        t(
-          "مدل دارای جست‌وجوی وب در فهرست فعلی سرویس پیدا نشد.",
-          "No web-search model is available from the service.",
-        ),
-      );
-      setPanel("models");
-      return;
+    if (web) {
+      setWeb(false);
+      return true;
     }
-    setWeb((w) => !w);
+    const chosen = modeModel(true, thinking);
+    if (!chosen) {
+      unavailableMode();
+      return false;
+    }
+    updateProfile({ model: chosen.id });
+    setWeb(true);
     haptic();
+    return true;
   }
   async function generate(c: Chat, withWeb = web) {
-    let chosen = selectedModel;
-    if (withWeb && !chosen?.capabilities?.includes("web_search"))
-      chosen = modelForWeb();
+    const chosen = modeModel(withWeb, thinking, c.messages, []);
     if (!chosen) {
       setBusy(false);
-      toast.error(
-        t(
-          "ابتدا فهرست مدل‌ها را در تنظیمات بارگذاری کن.",
-          "Load the model list in Settings first.",
-        ),
-      );
-      setPanel("models");
+      unavailableMode();
       return;
     }
     setBusy(true);
@@ -737,19 +832,24 @@ function ChatBody() {
       content: "",
       created: Date.now(),
       model: chosen.id,
+      webRequested: withWeb,
     };
     let working = {
       ...c,
       messages: [...c.messages, answer],
       updated: Date.now(),
     };
-    mergeChat(working);
-    nearBottom.current = true;
-    const update = (delta: string) => {
-      answer.content += delta;
+    let reasoningStarted = 0;
+    let reasoningEnded = 0;
+    let streamed = false;
+    let pending: ReturnType<typeof setTimeout> | undefined;
+    const refresh = () => {
+      pending = undefined;
       working = { ...working, messages: [...c.messages, { ...answer }] };
       mergeChat(working);
     };
+    refresh();
+    nearBottom.current = true;
     try {
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -758,68 +858,66 @@ function ChatBody() {
           chatId: c.id,
           model: chosen.id,
           web: withWeb,
+          ...(c.temporary
+            ? { temporary: true, conversation: { messages: c.messages } }
+            : {}),
           reasoning: thinking,
-          instructions: profile.instructions,
+          instructions: personalization(profile),
         }),
         signal: control.signal,
       });
-      if (!response.ok) {
-        const err: any = await response.json();
-        throw new Error(err.error || "Request failed");
-      }
-      if (response.headers.get("Content-Type")?.includes("event-stream")) {
-        const reader = response.body!.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let ended = false;
-        while (!ended) {
-          const { value, done } = await reader.read();
-          buffer += decoder.decode(value, { stream: !done });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-          if (done && buffer) lines.push(buffer);
-          for (const line of lines) {
-            if (!line.startsWith("data:")) continue;
-            const raw = line.slice(5).trim();
-            if (raw === "[DONE]") {
-              ended = true;
-              continue;
-            }
-            if (!raw) continue;
-            let j: any;
-            try {
-              j = JSON.parse(raw);
-            } catch {
-              continue;
-            }
-            if (j.error) throw new Error(j.error.message || "Stream failed");
-            const delta = j.choices?.[0]?.delta?.content;
-            if (typeof delta === "string") update(delta);
-          }
-          if (done) break;
+      streamed = !!response.headers
+        .get("content-type")
+        ?.includes("text/event-stream");
+      await readCompletion(response, (update) => {
+        if (update.reasoning) {
+          if (!reasoningStarted) reasoningStarted = Date.now();
+          answer.reasoning = (answer.reasoning || "") + update.reasoning;
         }
-      } else {
-        const j: any = await response.json();
-        const content = j.choices?.[0]?.message?.content;
-        if (typeof content === "string") update(content);
-      }
+        if (update.content) {
+          if (reasoningStarted && !reasoningEnded) reasoningEnded = Date.now();
+          answer.content += update.content;
+        }
+        if (reasoningStarted && streamed)
+          answer.reasoningDurationMs =
+            (reasoningEnded || Date.now()) - reasoningStarted;
+        if (update.sources.length)
+          answer.sources = mergeSources(answer.sources || [], update.sources);
+        if (update.finishReason) answer.finishReason = update.finishReason;
+        if (answer.content.length + (answer.reasoning?.length || 0) > 250000)
+          throw new Error(
+            t(
+              "پاسخ خیلی طولانی است. سؤال را به بخش‌های کوچک‌تر تقسیم کن.",
+              "The response is too large. Split the question into smaller parts.",
+            ),
+          );
+        if (!pending) pending = setTimeout(refresh, 50);
+      });
+      if (answer.finishReason === "tool_calls")
+        throw new Error(
+          "The model requested tool execution that is not available from this service.",
+        );
       if (!answer.content.trim())
         throw new Error(
-          t(
-            "مدل پاسخ متنی برنگرداند. یک مدل دیگر را امتحان کن.",
-            "The model returned no text. Try a different model.",
-          ),
+          answer.reasoning
+            ? "The reasoning budget was exhausted before a final answer. Try again or select another model."
+            : t(
+                "مدل پاسخ متنی برنگرداند. یک مدل دیگر را امتحان کن.",
+                "The model returned no text. Try a different model.",
+              ),
         );
     } catch (e: any) {
-      if (e.name === "AbortError") {
+      if (control.signal.aborted || e.name === "AbortError")
         answer.stopped = true;
-        if (!answer.content)
-          answer.content = t("پاسخ متوقف شد.", "Response stopped.");
-      } else {
+      else {
         answer.error = e.message;
         fail(e);
       }
     } finally {
+      if (pending) clearTimeout(pending);
+      if (reasoningStarted && streamed)
+        answer.reasoningDurationMs =
+          (reasoningEnded || Date.now()) - reasoningStarted;
       working = {
         ...working,
         messages: [...c.messages, { ...answer }],
@@ -848,8 +946,8 @@ function ChatBody() {
       fail(new Error(bootError || "Session expired. Reload the app."));
       return;
     }
-    if (!selectedModel) {
-      setPanel("models");
+    if (!modeModel(web, thinking)) {
+      unavailableMode();
       return;
     }
     setBusy(true);
@@ -865,6 +963,7 @@ function ChatBody() {
             files[0]?.name ||
             t("گفتگوی جدید", "New chat"),
           messages: [],
+          temporary,
           created: Date.now(),
           updated: Date.now(),
         };
@@ -896,8 +995,8 @@ function ChatBody() {
   }
   async function retry(index: number, withWeb = false) {
     if (busy || !chat) return;
-    if (!selectedModel || (withWeb && !modelForWeb())) {
-      setPanel("models");
+    if (!modeModel(withWeb, thinking, chat.messages.slice(0, index), [])) {
+      unavailableMode();
       return;
     }
     setBusy(true);
@@ -1021,19 +1120,19 @@ function ChatBody() {
             )
             .join("\n\n"),
         ),
-      disabled: !chat || busy,
+      disabled: !chat || busy || !!chat.temporary,
     },
     {
       label: chat?.pinned ? t("برداشتن پین", "Unpin") : t("پین", "Pin"),
       icon: <Pin />,
       action: () => chat && void changeChat(chat, { pinned: !chat.pinned }),
-      disabled: !chat || busy,
+      disabled: !chat || busy || !!chat.temporary,
     },
     {
       label: t("افزودن به پروژه", "Add to project"),
       icon: <FolderPlus />,
       action: () => setPanel("addproject"),
-      disabled: !chat || busy,
+      disabled: !chat || busy || !!chat.temporary,
     },
     {
       label: t("فایل‌های بارگذاری‌شده", "Uploaded files"),
@@ -1044,7 +1143,7 @@ function ChatBody() {
       label: t("جست‌وجو در گفتگو", "Find in chat"),
       icon: <Search />,
       action: () => setFind(true),
-      disabled: !chat || busy,
+      disabled: !chat || busy || !!chat.temporary,
     },
     {
       label: t("افزودن به صفحهٔ اصلی", "Add to home"),
@@ -1060,14 +1159,14 @@ function ChatBody() {
           setActiveId(null);
         }
       },
-      disabled: !chat || busy,
+      disabled: !chat || busy || !!chat.temporary,
     },
     {
       label: t("حذف", "Delete"),
       icon: <Trash2 />,
       danger: true,
       action: () => setDeleteChat(chat),
-      disabled: !chat || busy,
+      disabled: !chat || busy || !!chat.temporary,
     },
   ];
   const addItems: Item[] = [
@@ -1094,7 +1193,7 @@ function ChatBody() {
     {
       label: t("عمیق‌تر فکر کن", "Think harder"),
       icon: <Brain />,
-      action: () => setThinking((x) => !x),
+      action: enableThinking,
     },
     {
       label: t("جست‌وجوی وب", "Search the web"),
@@ -1103,7 +1202,10 @@ function ChatBody() {
     },
   ];
   const visibleChats = chats.filter(
-    (c) => !c.archived && (!projectFilter || c.project === projectFilter),
+    (c) =>
+      !c.temporary &&
+      !c.archived &&
+      (!projectFilter || c.project === projectFilter),
   );
   const grouped = [
     {
@@ -1135,12 +1237,14 @@ function ChatBody() {
         },
         annotations: { readOnlyHint: true, untrustedContentHint: true },
         execute: () => ({
-          chats: chats.map((c) => ({
-            id: c.id,
-            title: c.title,
-            pinned: !!c.pinned,
-            archived: !!c.archived,
-          })),
+          chats: chats
+            .filter((c) => !c.temporary)
+            .map((c) => ({
+              id: c.id,
+              title: c.title,
+              pinned: !!c.pinned,
+              archived: !!c.archived,
+            })),
         }),
       },
       {
@@ -1295,20 +1399,72 @@ function ChatBody() {
           )}
         </SidebarContent>
         <SidebarFooter className="side-footer">
-          <button className="new-chat" onClick={newChat}>
-            <SquarePen size={18} />
-            {t("گفتگوی جدید", "New chat")}
-          </button>
-          <IconButton
-            label={t("تنظیمات", "Settings")}
-            className="settings-button"
-            onClick={() => {
-              setPanel("settings");
-              setOpenMobile(false);
-            }}
+          <ActionMenu
+            items={[
+              {
+                label: t("تنظیمات", "Settings"),
+                icon: <Settings />,
+                action: () => {
+                  setSettingsTab("general");
+                  setPanel("settings");
+                  setOpenMobile(false);
+                },
+              },
+              {
+                label: t("شخصی‌سازی", "Personalization"),
+                icon: <Pencil />,
+                action: () => {
+                  setSettingsTab("personal");
+                  setPanel("settings");
+                  setOpenMobile(false);
+                },
+              },
+              {
+                label: t("حساب", "Account"),
+                icon: <UserRound />,
+                action: () => {
+                  setSettingsTab("account");
+                  setPanel("settings");
+                  setOpenMobile(false);
+                },
+              },
+              {
+                label: t("ارتقای طرح", "Upgrade plan"),
+                icon: <PlusCircle />,
+                action: () => setPanel("plus"),
+              },
+              ...(account && signOutPath
+                ? [
+                    {
+                      label: t("خروج", "Log out"),
+                      icon: <LogOut />,
+                      action: () => {
+                        window.top!.location.href = signOutPath;
+                      },
+                    },
+                  ]
+                : []),
+            ]}
           >
-            <Settings />
-          </IconButton>
+            <button className="account-menu-button">
+              <span className="account-avatar">
+                {account ? (
+                  account.displayName.slice(0, 1).toUpperCase()
+                ) : (
+                  <UserRound size={19} />
+                )}
+              </span>
+              <span className="account-label">
+                <b dir="auto">{account?.displayName || t("مهمان", "Guest")}</b>
+                <small>
+                  {account
+                    ? t("حساب متصل", "Signed in")
+                    : t("بدون ورود", "Not signed in")}
+                </small>
+              </span>
+              <MoreVertical size={18} />
+            </button>
+          </ActionMenu>
         </SidebarFooter>
       </Sidebar>
       <main className="chat-app" dir={fa ? "rtl" : "ltr"}>
@@ -1328,6 +1484,22 @@ function ChatBody() {
             </small>
           </button>
           <div className="header-right">
+            <IconButton
+              label={
+                temporary
+                  ? t("پایان گفتگوی موقت", "Exit temporary chat")
+                  : t("گفتگوی موقت", "Temporary chat")
+              }
+              disabled={busy}
+              className={temporary ? "temporary-active" : ""}
+              onClick={() => {
+                newChat();
+                setTemporary(!temporary);
+              }}
+            >
+              <MessageCircle />
+            </IconButton>
+
             {!chat && (
               <button className="plus-button" onClick={() => setPanel("plus")}>
                 Get Plus <span>✦</span>
@@ -1351,6 +1523,16 @@ function ChatBody() {
             </div>
           </div>
         </header>
+        {temporary && (
+          <div className="notice temporary-notice">
+            <span>
+              {t(
+                "گفتگوی موقت: پیام‌ها در تاریخچهٔ MindGPT ذخیره نمی‌شوند. فایل‌های بارگذاری‌شده در کتابخانه می‌مانند و پیام ارسالی به سرویس مدل می‌رود.",
+                "Temporary chat: messages are not saved in MindGPT history. Uploaded files stay in your library and submitted messages go to the model provider.",
+              )}
+            </span>
+          </div>
+        )}
         {!online && (
           <div className="notice">
             <WifiOff size={16} />
@@ -1439,9 +1621,6 @@ function ChatBody() {
         >
           {!messages.length ? (
             <div className="empty-chat">
-              <div className="brand-mark" aria-hidden="true">
-                M
-              </div>
               <h1>{t("به چی فکر می‌کنی؟", "What’s on your mind?")}</h1>
               <div className="suggestions">
                 {[
@@ -1579,19 +1758,16 @@ function ChatBody() {
                   ) : (
                     <>
                       <div className="assistant-body" dir="auto">
-                        {m.error ? (
-                          <div className="response-error">
-                            <AlertCircle size={20} />
-                            <p>{errorMessage(m.error)}</p>
-                            <button
-                              onClick={() => retry(index)}
-                              disabled={busy}
-                            >
-                              <RotateCw size={15} />
-                              {t("تلاش دوباره", "Retry")}
-                            </button>
-                          </div>
-                        ) : m.content ? (
+                        <ReasoningDetails
+                          message={m}
+                          fa={fa}
+                          active={
+                            busy &&
+                            workingId === chat?.id &&
+                            index === messages.length - 1
+                          }
+                        />
+                        {m.content && (
                           <Markdown
                             remarkPlugins={[remarkGfm, remarkMath]}
                             rehypePlugins={[rehypeKatex]}
@@ -1624,16 +1800,68 @@ function ChatBody() {
                               ),
                             }}
                           >
-                            {m.content}
+                            {citedMarkdown(m.content, m.sources)}
                           </Markdown>
-                        ) : (
-                          <div className="thinking">
-                            <span />
-                            <span />
-                            <span />
-                            <small>{t("در حال فکر کردن", "Thinking")}</small>
+                        )}
+                        {!m.content &&
+                          !m.reasoning &&
+                          !m.error &&
+                          !m.stopped &&
+                          busy &&
+                          workingId === chat?.id &&
+                          index === messages.length - 1 && (
+                            <div className="thinking" role="status">
+                              <span />
+                              <span />
+                              <span />
+                              <small>
+                                {t("در انتظار پاسخ…", "Waiting for response…")}
+                              </small>
+                            </div>
+                          )}
+                        {m.error && (
+                          <div className="response-error" role="alert">
+                            <AlertCircle size={20} />
+                            <p>{errorMessage(m.error)}</p>
+                            <button
+                              onClick={() => retry(index, !!m.webRequested)}
+                              disabled={busy}
+                            >
+                              <RotateCw size={15} />
+                              {t("تلاش دوباره", "Retry")}
+                            </button>
                           </div>
                         )}
+                        {m.stopped && (
+                          <p className="response-status">
+                            {t("پاسخ متوقف شد", "Response stopped")}
+                          </p>
+                        )}
+                        {m.finishReason === "length" && !m.error && (
+                          <p className="response-status">
+                            {t(
+                              "پاسخ به سقف طول رسید؛ برای ادامه، پیام بده.",
+                              "The response reached its length limit. Send a message to continue.",
+                            )}
+                          </p>
+                        )}
+                        {m.finishReason === "content_filter" && (
+                          <p className="response-status">
+                            {t(
+                              "سرویس بخشی از پاسخ را محدود کرد.",
+                              "The service limited part of this response.",
+                            )}
+                          </p>
+                        )}
+                        <ResponseSources
+                          message={m}
+                          fa={fa}
+                          active={
+                            busy &&
+                            workingId === chat?.id &&
+                            index === messages.length - 1
+                          }
+                        />
                       </div>
                       {m.content && (
                         <div className="response-actions">
@@ -1786,14 +2014,14 @@ function ChatBody() {
             {(web || thinking) && (
               <div className="mode-chips">
                 {web && (
-                  <button onClick={() => setWeb(false)}>
+                  <button disabled={busy} onClick={() => setWeb(false)}>
                     <Globe size={15} />
                     {t("جست‌وجوی وب", "Search")}
                     <X size={13} />
                   </button>
                 )}
                 {thinking && (
-                  <button onClick={() => setThinking(false)}>
+                  <button disabled={busy} onClick={() => setThinking(false)}>
                     <Brain size={15} />
                     {t("تفکر عمیق", "Think harder")}
                     <X size={13} />
@@ -1895,7 +2123,12 @@ function ChatBody() {
                 />
                 <IconButton
                   label={t("شروع ضبط صدا", "Start dictation")}
-                  onClick={() => void voice.start()}
+                  className={
+                    profile.dictation === false ? "dictation-disabled" : ""
+                  }
+                  onClick={() => {
+                    if (profile.dictation !== false) void voice.start();
+                  }}
                   disabled={busy}
                 >
                   <Mic />
@@ -1932,36 +2165,14 @@ function ChatBody() {
                 )}
               </div>
             )}
-            <div className="composer-footnote">
-              {voice.recording ? (
-                t(
+            {voice.recording && (
+              <div className="composer-footnote">
+                {t(
                   "با تأیید تو به متن تبدیل می‌شود؛ خودکار ارسال نمی‌شود.",
                   "Confirm to transcribe. Nothing is sent automatically.",
-                )
-              ) : (
-                <span className="composer-brand" dir="ltr">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="/logo-dark.png"
-                    alt="MindGPT"
-                    className="composer-logo composer-logo-dark"
-                    width={120}
-                    height={89}
-                    draggable={false}
-                  />
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="/logo-light.png"
-                    alt=""
-                    aria-hidden="true"
-                    className="composer-logo composer-logo-light"
-                    width={120}
-                    height={89}
-                    draggable={false}
-                  />
-                </span>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </main>
@@ -2030,56 +2241,103 @@ function ChatBody() {
             {t("گزینه‌ها و تنظیمات MindGPT", "MindGPT options and settings")}
           </DialogDescription>
           {panel === "settings" && (
-            <Tabs defaultValue="general" className="settings-tabs">
-              <TabsList className="settings-tab-list">
-                {[
-                  {
-                    key: "general",
-                    icon: <SlidersHorizontal />,
-                    label: t("عمومی", "General"),
-                  },
-                  {
-                    key: "models",
-                    icon: <Brain />,
-                    label: t("مدل‌ها", "Models"),
-                  },
-                  {
-                    key: "personal",
-                    icon: <Pencil />,
-                    label: t("شخصی‌سازی", "Personalize"),
-                  },
-                  { key: "voice", icon: <Volume2 />, label: t("صدا", "Voice") },
-                  {
-                    key: "data",
-                    icon: <Shield />,
-                    label: t("داده‌ها", "Data"),
-                  },
-                ].map((tab) => (
-                  <TabsTrigger key={tab.key} value={tab.key}>
-                    {tab.icon}
-                    {tab.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
+            <Tabs
+              value={settingsTab}
+              onValueChange={setSettingsTab}
+              className="settings-tabs"
+            >
+              <div className="settings-navigation">
+                <Input
+                  aria-label={t("جست‌وجو در تنظیمات", "Search settings")}
+                  placeholder={t("جست‌وجوی تنظیمات", "Search settings")}
+                  value={settingsSearch}
+                  onChange={(e) => {
+                    const query = e.target.value;
+                    setSettingsSearch(query);
+                    const first = Object.keys(settingsKeywords).find((k) =>
+                      settingsKeywords[k]
+                        .toLowerCase()
+                        .includes(query.trim().toLowerCase()),
+                    );
+                    if (first) setSettingsTab(first);
+                  }}
+                />
+                <TabsList className="settings-tab-list">
+                  {[
+                    {
+                      key: "general",
+                      icon: <SlidersHorizontal />,
+                      label: t("عمومی", "General"),
+                    },
+                    {
+                      key: "models",
+                      icon: <Brain />,
+                      label: t("مدل‌ها", "Models"),
+                    },
+                    {
+                      key: "personal",
+                      icon: <Pencil />,
+                      label: t("شخصی‌سازی", "Personalization"),
+                    },
+                    {
+                      key: "voice",
+                      icon: <Volume2 />,
+                      label: t("صدا", "Voice"),
+                    },
+                    {
+                      key: "data",
+                      icon: <Shield />,
+                      label: t("کنترل داده‌ها", "Data controls"),
+                    },
+                    {
+                      key: "storage",
+                      icon: <Library />,
+                      label: t("فضای ذخیره‌سازی", "Storage"),
+                    },
+                    {
+                      key: "account",
+                      icon: <UserRound />,
+                      label: t("حساب", "Account"),
+                    },
+                  ]
+                    .filter(
+                      (tab) =>
+                        !settingsSearch ||
+                        (settingsKeywords[tab.key] + tab.label)
+                          .toLowerCase()
+                          .includes(settingsSearch.trim().toLowerCase()),
+                    )
+                    .map((tab) => (
+                      <TabsTrigger key={tab.key} value={tab.key}>
+                        {tab.icon}
+                        {tab.label}
+                      </TabsTrigger>
+                    ))}
+                </TabsList>
+                {settingsSearch &&
+                  !Object.values(settingsKeywords).some((v) =>
+                    v.includes(settingsSearch.trim().toLowerCase()),
+                  ) && (
+                    <p className="muted-note">
+                      {t("تنظیمی پیدا نشد", "No settings found")}
+                    </p>
+                  )}
+              </div>
               <div className="settings-content">
+                <h3 className="settings-section-title">
+                  {
+                    {
+                      general: t("عمومی", "General"),
+                      models: t("مدل‌ها", "Models"),
+                      personal: t("شخصی‌سازی", "Personalization"),
+                      voice: t("صدا", "Voice"),
+                      data: t("کنترل داده‌ها", "Data controls"),
+                      storage: t("فضای ذخیره‌سازی", "Storage"),
+                      account: t("حساب", "Account"),
+                    }[settingsTab]
+                  }
+                </h3>
                 <TabsContent value="general">
-                  <div className="setting-row">
-                    <span>
-                      <Languages />
-                      {t("زبان", "Language")}
-                    </span>
-                    <Choice
-                      label="Language"
-                      value={profile.language || "fa"}
-                      onChange={(v) =>
-                        updateProfile({ language: v as "fa" | "en" })
-                      }
-                      options={[
-                        { value: "fa", label: "فارسی" },
-                        { value: "en", label: "English" },
-                      ]}
-                    />
-                  </div>
                   <div className="setting-row">
                     <span>
                       <Moon />
@@ -2095,6 +2353,23 @@ function ChatBody() {
                         { value: "dark", label: t("تیره", "Dark") },
                         { value: "light", label: t("روشن", "Light") },
                         { value: "system", label: t("سیستم", "System") },
+                      ]}
+                    />
+                  </div>
+                  <div className="setting-row">
+                    <span>
+                      <Languages />
+                      {t("زبان", "Language")}
+                    </span>
+                    <Choice
+                      label="Language"
+                      value={profile.language || "fa"}
+                      onChange={(v) =>
+                        updateProfile({ language: v as "fa" | "en" })
+                      }
+                      options={[
+                        { value: "fa", label: "فارسی" },
+                        { value: "en", label: "English" },
                       ]}
                     />
                   </div>
@@ -2122,8 +2397,8 @@ function ChatBody() {
                       <b>MindGPT</b>
                       <small>
                         {t(
-                          "مایند جی‌پی‌تی · نسخهٔ ۱.۰",
-                          "Your AI workspace · Version 1.0",
+                          "مایند جی‌پی‌تی · نسخهٔ ۱.۳",
+                          "Your AI workspace · Version 1.3",
                         )}
                       </small>
                     </div>
@@ -2171,22 +2446,72 @@ function ChatBody() {
                   </p>
                 </TabsContent>
                 <TabsContent value="personal">
+                  <div className="setting-row">
+                    <span>{t("سبک و لحن پایه", "Base style and tone")}</span>
+                    <Choice
+                      label="Base style and tone"
+                      value={profile.tone || "default"}
+                      onChange={(v) => updateProfile({ tone: v })}
+                      options={[
+                        { value: "default", label: t("پیش‌فرض", "Default") },
+                        {
+                          value: "professional",
+                          label: t("حرفه‌ای", "Professional"),
+                        },
+                        { value: "friendly", label: t("دوستانه", "Friendly") },
+                        { value: "candid", label: t("صریح", "Candid") },
+                        { value: "concise", label: t("مختصر", "Concise") },
+                      ]}
+                    />
+                  </div>
+                  <p className="muted-note">
+                    {t(
+                      "لحن پاسخ را تنظیم می‌کند و قابلیت‌های مدل را تغییر نمی‌دهد.",
+                      "Sets the tone of responses without changing model capabilities.",
+                    )}
+                  </p>
+
                   <label className="field-label" htmlFor="instructions">
                     {t(
                       "دوست داری MindGPT چطور پاسخ بدهد؟",
                       "How should MindGPT respond?",
                     )}
                   </label>
+                  {(
+                    [
+                      ["nickname", t("نام مستعار", "Nickname")],
+                      ["occupation", t("شغل", "Occupation")],
+                      ["about", t("دربارهٔ تو", "More about you")],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <label className="profile-field" key={key}>
+                      {label}
+                      <Input
+                        value={profile[key] || ""}
+                        maxLength={key === "about" ? 1000 : 120}
+                        onChange={(e) => {
+                          const next = {
+                            ...profileRef.current,
+                            [key]: e.target.value,
+                          };
+                          profileRef.current = next;
+                          setProfile(next);
+                        }}
+                      />
+                    </label>
+                  ))}
                   <textarea
                     id="instructions"
                     className="form-textarea"
                     value={profile.instructions || ""}
-                    onChange={(e) =>
-                      setProfile((p) => ({
-                        ...p,
+                    onChange={(e) => {
+                      const next = {
+                        ...profileRef.current,
                         instructions: e.target.value,
-                      }))
-                    }
+                      };
+                      profileRef.current = next;
+                      setProfile(next);
+                    }}
                     maxLength={3000}
                     rows={7}
                     placeholder={t(
@@ -2197,14 +2522,30 @@ function ChatBody() {
                   <button
                     className="primary-button"
                     onClick={() => {
-                      updateProfile({ instructions: profile.instructions });
-                      toast.success(t("ذخیره شد", "Saved"));
+                      const next = { ...profileRef.current };
+                      profileQueue.current = profileQueue.current
+                        .then(async () => {
+                          await api("profile", "POST", next);
+                          toast.success(t("ذخیره شد", "Saved"));
+                        })
+                        .catch(fail);
                     }}
                   >
                     {t("ذخیرهٔ ترجیحات", "Save preferences")}
                   </button>
                 </TabsContent>
                 <TabsContent value="voice">
+                  <div className="setting-row">
+                    <label htmlFor="enable-dictation">
+                      {t("فعال‌کردن تبدیل گفتار", "Enable Dictation")}
+                    </label>
+                    <Switch
+                      id="enable-dictation"
+                      checked={profile.dictation !== false}
+                      onCheckedChange={(v) => updateProfile({ dictation: v })}
+                    />
+                  </div>
+
                   <div className="setting-row">
                     <span>{t("سرعت خواندن پاسخ", "Playback speed")}</span>
                     <Choice
@@ -2242,6 +2583,25 @@ function ChatBody() {
                   </p>
                 </TabsContent>
                 <TabsContent value="data">
+                  <button
+                    className="setting-link"
+                    disabled={busy || bulkBusy}
+                    onClick={() => setBulkAction("archive")}
+                  >
+                    <Archive />
+                    {t("بایگانی همهٔ گفتگوها", "Archive all chats")}
+                    <ChevronRight />
+                  </button>
+                  <button
+                    className="setting-link danger"
+                    disabled={busy || bulkBusy}
+                    onClick={() => setBulkAction("delete")}
+                  >
+                    <Trash2 />
+                    {t("حذف همهٔ گفتگوها", "Delete all chats")}
+                    <ChevronRight />
+                  </button>
+
                   <button className="setting-link" onClick={exportData}>
                     <Download />
                     {t("دریافت خروجی گفتگوها", "Export conversations")}
@@ -2265,10 +2625,117 @@ function ChatBody() {
                   </button>
                   <p className="muted-note">
                     {t(
-                      "گفتگوها و فایل‌ها روی سرور ذخیره می‌شوند و با شناسهٔ خصوصی همین مرورگر در دسترس‌اند. پاک کردن کوکی یا تغییر مرورگر دسترسی به این تاریخچه را قطع می‌کند؛ قبل از آن خروجی بگیر. پیام‌ها و پیوست‌های ارسالی برای پاسخ‌گویی به CodeCraft فرستاده می‌شوند.",
-                      "Chats and files are stored on the server and linked to this browser’s private session. Clearing cookies or switching browsers loses access to this history; export first. Submitted messages and attachments are sent to CodeCraft to generate responses.",
+                      isLocal()
+                        ? "گفتگوها و فایل‌ها روی همین دستگاه ذخیره می‌شوند. قبل از پاک‌کردن داده‌های برنامه خروجی بگیر. پیام‌ها و پیوست‌ها به سرویس انتخاب‌شده فرستاده می‌شوند."
+                        : account
+                          ? "گفتگوها و فایل‌ها به حساب متصل‌اند و پس از ورود با همان حساب دوباره در دسترس خواهند بود. تاریخچهٔ مهمان جداست. پیام‌ها و پیوست‌ها برای پاسخ‌گویی به CodeCraft فرستاده می‌شوند."
+                          : "تاریخچهٔ مهمان به همین مرورگر وابسته است. پاک‌کردن کوکی دسترسی را قطع می‌کند؛ قبل از آن خروجی بگیر. پیام‌ها و پیوست‌ها برای پاسخ‌گویی به CodeCraft فرستاده می‌شوند.",
+                      isLocal()
+                        ? "Chats and files are stored on this device. Export before clearing app data. Submitted content is sent to your selected provider."
+                        : account
+                          ? "Chats and files are linked to your account and return when you sign in again. Guest history is separate. Submitted messages and attachments are sent to CodeCraft."
+                          : "Guest history is linked to this browser. Clearing cookies loses access; export first. Submitted messages and attachments are sent to CodeCraft.",
                     )}
                   </p>
+                </TabsContent>
+                <TabsContent value="storage">
+                  <div className="setting-row">
+                    <span>{t("فایل‌های ذخیره‌شده", "Stored files")}</span>
+                    <b>{assets.length}</b>
+                  </div>
+                  <div className="setting-row">
+                    <span>{t("حجم فایل‌ها", "File storage")}</span>
+                    <b dir="ltr">
+                      {(
+                        assets.reduce((n, a) => n + a.size, 0) /
+                        1024 /
+                        1024
+                      ).toFixed(2)}{" "}
+                      MB
+                    </b>
+                  </div>
+                  <button
+                    className="setting-link"
+                    onClick={() => setPanel("library")}
+                  >
+                    <Library />
+                    {t("مدیریت فایل‌ها", "Manage files")}
+                    <ChevronRight />
+                  </button>
+                </TabsContent>
+                <TabsContent value="account">
+                  {isLocal() ? (
+                    <>
+                      <h3>{t("نسخهٔ روی دستگاه", "On-device edition")}</h3>
+                      <p className="muted-note">
+                        {t(
+                          "گفتگوها، فایل‌ها و تنظیمات این نسخه روی همین گوشی ذخیره می‌شوند. ورود و تاریخچهٔ حساب در نسخهٔ وب در دسترس است؛ داده‌های گوشی خودکار به حساب منتقل نمی‌شوند.",
+                          "This edition keeps chats, files and settings on this device. Account sign-in is available on the web edition; local data is not automatically synced.",
+                        )}
+                      </p>
+                      <a
+                        className="secondary-button"
+                        href="https://mindgpt-vexel.attagladys74839.chatgpt.site"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {t("باز کردن نسخهٔ وب", "Open web edition")}
+                      </a>
+                    </>
+                  ) : account ? (
+                    <>
+                      <div className="setting-row">
+                        <span>{t("نام", "Name")}</span>
+                        <b dir="auto">{account.displayName}</b>
+                      </div>
+                      <div className="setting-row">
+                        <span>{t("ایمیل", "Email")}</span>
+                        <span dir="ltr" className="account-email">
+                          {account.email}
+                        </span>
+                      </div>
+                      <p className="muted-note">
+                        {t(
+                          "ورود امن از طریق حساب ChatGPT انجام شده؛ MindGPT رمز عبور شما را دریافت نمی‌کند.",
+                          "Secure sign-in is provided by ChatGPT. MindGPT does not receive your password.",
+                        )}
+                      </p>
+                      <a
+                        className="secondary-button"
+                        href={signOutPath}
+                        target="_top"
+                      >
+                        {t("خروج", "Log out")}
+                      </a>
+                    </>
+                  ) : (
+                    <>
+                      <h3>{t("به MindGPT خوش آمدی", "Welcome to MindGPT")}</h3>
+                      <p className="muted-note">
+                        {t(
+                          "با ورود، تاریخچه و تنظیماتت به حسابت متصل می‌شود. می‌توانی بدون ورود هم گفتگو کنی؛ تاریخچهٔ مهمان جدا می‌ماند.",
+                          "Sign in to keep history and settings with your account. You can continue as a guest; guest history stays separate.",
+                        )}
+                      </p>
+                      {signInPath && (
+                        <a
+                          className="primary-button full"
+                          href={
+                            signInPath + "?lang=" + (profile.language || "fa")
+                          }
+                          target="_top"
+                        >
+                          {t("ادامه با ChatGPT", "Continue with ChatGPT")}
+                        </a>
+                      )}
+                      <button
+                        className="secondary-button full"
+                        onClick={() => setPanel(null)}
+                      >
+                        {t("ادامه بدون ورود", "Continue as guest")}
+                      </button>
+                    </>
+                  )}
                 </TabsContent>
               </div>
             </Tabs>
@@ -2309,7 +2776,7 @@ function ChatBody() {
                     onValueChange={(value: string | null) => {
                       if (value) {
                         const m = models.find((m) => m.id === value);
-                        if (m?.type === "embedding") {
+                        if (m && !isChatModel(m)) {
                           toast(
                             t(
                               "این مدل مخصوص بردارسازی است.",
@@ -2319,6 +2786,10 @@ function ChatBody() {
                           return;
                         }
                         updateProfile({ model: value });
+                        if (!m?.capabilities?.includes("web_search"))
+                          setWeb(false);
+                        if (!m?.capabilities?.includes("reasoning"))
+                          setThinking(false);
                         haptic();
                         toast.success(t("مدل انتخاب شد", "Model selected"));
                       }
@@ -2346,7 +2817,7 @@ function ChatBody() {
                             <ComboboxItem
                               key={id}
                               value={id}
-                              disabled={m.type === "embedding"}
+                              disabled={!isChatModel(m)}
                             >
                               <div>
                                 <strong>{m.name || id}</strong>
@@ -2802,8 +3273,7 @@ function ChatBody() {
             <div className="tools-list">
               <button
                 onClick={() => {
-                  enableWeb();
-                  if (modelForWeb()) setPanel(null);
+                  if (enableWeb()) setPanel(null);
                 }}
               >
                 <Globe />
@@ -2820,8 +3290,7 @@ function ChatBody() {
               </button>
               <button
                 onClick={() => {
-                  setThinking(true);
-                  setPanel(null);
+                  if (enableThinking()) setPanel(null);
                 }}
               >
                 <Brain />
@@ -2930,6 +3399,78 @@ function ChatBody() {
           </form>
         </DialogContent>
       </Dialog>
+      <AlertDialog
+        open={!!bulkAction}
+        onOpenChange={(v) => {
+          if (!v && !bulkBusy) setBulkAction(null);
+        }}
+      >
+        <AlertDialogContent
+          className="mind-dialog small-dialog"
+          dir={fa ? "rtl" : "ltr"}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {bulkAction === "delete"
+                ? t("همهٔ گفتگوها حذف شوند؟", "Delete all chats?")
+                : t("همهٔ گفتگوها بایگانی شوند؟", "Archive all chats?")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {bulkAction === "delete"
+                ? t(
+                    "پیام‌ها برای همیشه حذف می‌شوند. فایل‌های کتابخانه باقی می‌مانند.",
+                    "Messages will be permanently deleted. Library files remain.",
+                  )
+                : t(
+                    "گفتگوها از فهرست اصلی به بایگانی منتقل می‌شوند و قابل بازگرداندن‌اند.",
+                    "Chats move from the main list to the archive and can be restored.",
+                  )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkBusy}>
+              {t("انصراف", "Cancel")}
+            </AlertDialogCancel>
+            <button
+              className={
+                bulkAction === "delete"
+                  ? "delete-confirm primary-button"
+                  : "primary-button"
+              }
+              disabled={bulkBusy}
+              onClick={async () => {
+                if (!bulkAction) return;
+                setBulkBusy(true);
+                try {
+                  await api("chats-all", "POST", { action: bulkAction });
+                  setChats((cs) =>
+                    bulkAction === "delete"
+                      ? cs.filter((c) => c.temporary)
+                      : cs.map((c) =>
+                          c.temporary ? c : { ...c, archived: true },
+                        ),
+                  );
+                  if (!temporary) setActiveId(null);
+                  toast.success(t("انجام شد", "Done"));
+                  setBulkAction(null);
+                } catch (e) {
+                  fail(e);
+                } finally {
+                  setBulkBusy(false);
+                }
+              }}
+            >
+              {bulkBusy ? (
+                <LoaderCircle className="spin" />
+              ) : bulkAction === "delete" ? (
+                t("حذف همه", "Delete all")
+              ) : (
+                t("بایگانی همه", "Archive all")
+              )}
+            </button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog
         open={!!deleteChat}
         onOpenChange={(v) => {
@@ -3119,7 +3660,9 @@ function ChatBody() {
             ) : (
               <button
                 className="primary-button"
-                onClick={() => void voice.start()}
+                onClick={() => {
+                  if (profile.dictation !== false) void voice.start();
+                }}
               >
                 <Mic size={21} />
                 {t("شروع صحبت", "Start talking")}
