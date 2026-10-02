@@ -1,4 +1,6 @@
 import { env } from "cloudflare:workers";
+import { getChatGPTUser } from "@/app/chatgpt-auth";
+import { accountOwner } from "./identity";
 type Runtime = {
   DB: D1Database;
   BUCKET: R2Bucket;
@@ -11,7 +13,14 @@ export const database = () => {
   if (!d) throw new Error("Storage is unavailable");
   return d;
 };
-export function session(req: Request) {
+export async function platformUser(req: Request) {
+  // These identity headers are trustworthy only behind Sites dispatch.
+  if (!new URL(req.url).hostname.endsWith(".chatgpt.site")) return null;
+  return getChatGPTUser();
+}
+export async function session(req: Request) {
+  const user = await platformUser(req);
+  if (user) return accountOwner(user.userId);
   const id = req.headers
     .get("cookie")
     ?.match(/(?:^|;\s*)mind_session=([a-f0-9]{64})(?:;|$)/)?.[1];
@@ -49,16 +58,20 @@ export async function upstream(path: string, init: RequestInit = {}) {
 }
 export async function apiError(r: Response) {
   let message = "";
+  let blocked = false;
   try {
     const j = (await r.json()) as any;
+    blocked =
+      j?.error_code === 1010 || j?.error_name === "browser_signature_banned";
     message = String(j?.error?.message || j?.message || "").slice(0, 250);
     const secret = runtime().CODECRAFT_API_KEY;
     if (secret) message = message.replaceAll(secret, "[redacted]");
   } catch {}
   return json(
     {
-      error:
-        r.status === 401
+      error: blocked
+        ? "CodeCraft's security filter blocked this connection (403). Ask service support to allow server access."
+        : r.status === 401
           ? "API key was rejected."
           : r.status === 403
             ? "CodeCraft refused this request (403). Check the key permissions or service access."
@@ -83,3 +96,4 @@ export async function models() {
   modelsCache = { until: Date.now() + 180000, data: j.data };
   return j.data;
 }
+
